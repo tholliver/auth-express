@@ -1,5 +1,5 @@
 import dbConn from '../db/pgConn.js'
-import { Router } from 'express'
+import { Router, request } from 'express'
 import { storeSchema } from '../db/schema/dvdrental.js'
 import { eq } from 'drizzle-orm'
 import jwt from 'jsonwebtoken'
@@ -21,22 +21,29 @@ class storeController {
     }
     return res.status(200).send(storeFound)
   }
-  static async getStores(req, res, next) {
-    let token = ''
+
+  static getTokenFrom = (req) => {
     const authorization = req.get('authorization')
     if (authorization && authorization.toLowerCase().startsWith('bearer')) {
-      token = authorization.substring(7)
+      return authorization.substring(7)
     }
-    const decodedToken = jwt.verify(token, `${config.SECRET_KEY_TOKEN}`)
+    return null
+  }
 
-    // console.log('secret', typeof decodedToken, decodedToken)
+  static async getStores(req, res, next) {
+    try {
+      const token = storeController.getTokenFrom(req)
+      const decodedToken = jwt.verify(token, config.SECRET_KEY_TOKEN)
 
-    if (!token || !decodedToken.id)
-      return res.status(401).send({ message: 'No authorized' })
+      if (!decodedToken.id)
+        return res.status(401).json({ error: 'token missing or invalid' })
 
-    const allStores = await dbConn.query.storeSchema.findMany()
+      const allStores = await dbConn.query.storeSchema.findMany()
 
-    return res.status(200).send(allStores)
+      return res.status(200).send(allStores)
+    } catch (error) {
+      next(error)
+    }
   }
 }
 
